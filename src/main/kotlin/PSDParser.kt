@@ -22,9 +22,8 @@ class PSDParser(private val fileStream: InputStream) {
     }
 
     suspend fun parseHeader(): PSDFileHeader {
-        cursor.resetCursor(fileStream)
-        val signautre = cursor.readByte(fileStream, 4)
-        if (String(signautre) != "8BPS")
+        val signature = cursor.readByte(fileStream, 4)
+        if (String(signature) != "8BPS")
             throw Error("Invalid PSD File")
 
         val version = cursor.readByte(fileStream, 2)
@@ -50,7 +49,7 @@ class PSDParser(private val fileStream: InputStream) {
 
         // color mode
         val colorMode = cursor.readByte(fileStream, 2).toInt()
-        return PSDFileHeader(String(signautre), height, width, colorMode)
+        return PSDFileHeader(String(signature), height, width, colorMode)
     }
 
     suspend fun parseColorModeData(): PSDColorMode {
@@ -68,8 +67,12 @@ class PSDParser(private val fileStream: InputStream) {
     }
 
     private suspend fun parseImageResourceBlock(): PSDImageResource?  {
+        cursor.markCursor(fileStream)
         val signature = cursor.readByte(fileStream, 4)
-        if (String(signature) != "8BIM") return null
+        if (String(signature) != "8BIM")  {
+            cursor.resetCursor(fileStream)
+            return null
+        }
 
         val identifier = cursor.readByte(fileStream, 2).toInt()
 
@@ -94,7 +97,15 @@ class PSDParser(private val fileStream: InputStream) {
 
     fun parseResourceMaskAndLayer() {
         val maskAndLayerLength = cursor.readByte(fileStream, 4).toInt()
-        print(maskAndLayerLength)
+        println("maskAndLayerLength: $maskAndLayerLength")
+        // Layer Info Parsing
+        val layerInfoLength = cursor.readByte(fileStream, 4).toInt()
+        println("layerInfoLength: $layerInfoLength")
+        val layerCount = cursor.readByte(fileStream, 2).toInt()
+        println("layer: $layerCount")
+        // Layer Record Parsing
+
+        // Global layer mask info
     }
 
 }
