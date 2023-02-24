@@ -1,5 +1,6 @@
 import java.io.InputStream
 
+// TODO Make parser parallelized
 class PSDParser(private val fileStream: InputStream) {
     private lateinit var cursor: PSDCursor
     private val PSD_HEADER_OFFSET = 0x00
@@ -14,7 +15,6 @@ class PSDParser(private val fileStream: InputStream) {
         return ""
     }
 
-    // TODO: What if moreThan 8byte
     fun ByteArray.toInt(): Int {
         return this.map { it.toInt() }.foldIndexed(0) { index: Int, acc: Int, value: Int ->
             (value and 0xFF shl (8 * (this.size - 1 - index))) or acc
@@ -22,34 +22,36 @@ class PSDParser(private val fileStream: InputStream) {
     }
 
     suspend fun parseHeader(): PSDFileHeader {
-        val signature = cursor.readByte(fileStream, 4)
-        if (String(signature) != "8BPS")
-            throw Error("Invalid PSD File")
+        cursor.apply {
+            val signature = readByte(fileStream, 4)
+            if (String(signature) != "8BPS")
+                throw Error("Invalid PSD File")
 
-        val version = cursor.readByte(fileStream, 2)
-        if (version[1].toInt() != 1)
-            throw Error("Invalid PSD Version")
+            val version = readByte(fileStream, 2)
+            if (version[1].toInt() != 1)
+                throw Error("Invalid PSD Version")
 
-        // reserved
-        cursor.readByte(fileStream, 6)
+            // reserved
+            readByte(fileStream, 6)
 
-        // channel
-        cursor.readByte(fileStream, 2)
+            // channel
+            readByte(fileStream, 2)
 
-        // height
-        val height = cursor.readByte(fileStream, 4).toInt()
+            // height
+            val height = readByte(fileStream, 4).toInt()
 //        println("Height: ${height}")
 
-        // width
-        val width = cursor.readByte(fileStream, 4).toInt()
+            // width
+            val width = readByte(fileStream, 4).toInt()
 //        println("Width: ${width}")
 
-        // depth
-        val depth = cursor.readByte(fileStream, 2)
+            // depth
+            val depth = readByte(fileStream, 2)
 
-        // color mode
-        val colorMode = cursor.readByte(fileStream, 2).toInt()
-        return PSDFileHeader(String(signature), height, width, colorMode)
+            // color mode
+            val colorMode = readByte(fileStream, 2).toInt()
+            return PSDFileHeader(String(signature), height, width, colorMode)
+        }
     }
 
     suspend fun parseColorModeData(): PSDColorMode {
@@ -95,17 +97,136 @@ class PSDParser(private val fileStream: InputStream) {
         return PSDImageResource(identifier, pascalStrings ?: "", resourceData)
     }
 
-    fun parseResourceMaskAndLayer() {
+    suspend fun parseResourceMaskAndLayer() {
         val maskAndLayerLength = cursor.readByte(fileStream, 4).toInt()
-        println("maskAndLayerLength: $maskAndLayerLength")
+
         // Layer Info Parsing
         val layerInfoLength = cursor.readByte(fileStream, 4).toInt()
-        println("layerInfoLength: $layerInfoLength")
+
         val layerCount = cursor.readByte(fileStream, 2).toInt()
-        println("layer: $layerCount")
+
         // Layer Record Parsing
+        for (i in 1..layerCount) {
+            parseLayerBlock()
+        }
 
         // Global layer mask info
+    }
+
+    private suspend fun parseLayerBlock() {
+        cursor.apply {
+            val top = readByte(fileStream, 4).toInt()
+            val left = readByte(fileStream, 4).toInt()
+            val bottom = readByte(fileStream, 4).toInt()
+            val right = readByte(fileStream, 4).toInt()
+
+            val channelsCount = readByte(fileStream, 2).toInt()
+            for (channel in 1 .. channelsCount) {
+                readByte(fileStream, 2)
+                readByte(fileStream, 4)
+            }
+
+            // Blend mode signature
+            if (String(readByte(fileStream, 4)) != "8BIM") {
+                throw Error("Blend mode invalid")
+            }
+
+            // Blend mode key
+            val blendModeKey = String(readByte(fileStream, 4))
+
+            // opacity
+            val opacity = readByte(fileStream, 1).toInt()
+
+            // clipping
+            val clipping = readByte(fileStream, 1).toInt()
+
+            // flag
+            val layerFlag = readByte(fileStream, 1)
+
+            // filler
+            readByte(fileStream, 1)
+
+            // extra data field
+            readByte(fileStream, 4)
+
+            // layer mask, layer blending
+            parseLayerMask()
+            parseLayerBlending()
+
+            // layer name (Pascal String)
+
+
+        }
+    }
+
+    private fun parsePascalName() {
+        cursor.apply {
+            val layerNameSize = readByte(fileStream, 1).toInt()
+            val pascalStrings = if (layerNameSize > 0) {
+                readByte(fileStream, layerNameSize).fromPascalString()
+            } else {
+                readByte(fileStream, 1)
+                null
+            }
+        }
+    }
+
+    private fun parseLayerMask() {
+        cursor.apply {
+            val layerMaskSize = readByte(fileStream, 4).toInt()
+            if (layerMaskSize == 0) return
+
+            val top = readByte(fileStream, 4)
+            val left = readByte(fileStream,4)
+            val right = readByte(fileStream, 4)
+            val bottom = readByte(fileStream, 4)
+
+            val defaultColor = readByte(fileStream, 1)
+
+            //bit 0 = position relative to layer
+            //bit 1 = layer mask disabled
+            //bit 2 = invert layer mask when blending (Obsolete)
+            //bit 3 = indicates that the user mask actually came from rendering other data
+            //bit 4 = indicates that the user and/or vector masks have parameters applied to them
+            val flags = readByte(fileStream, 1).toInt()
+
+            // mask parameters
+            if (flags == 4) {
+                //bit 0 = user mask density, 1 byte
+                //bit 1 = user mask feather, 8 byte, double
+                //bit 2 = vector mask density, 1 byte
+                //bit 3 = vector mask feather, 8 bytes, double
+                val maskParameter = readByte(fileStream, 1).toInt()
+                when (maskParameter) {
+                    0 -> {
+                        readByte(fileStream, 1)
+                    }
+                    1 -> {
+                        readByte(fileStream, 8)
+                    }
+                    2 -> {
+                        readByte(fileStream, 1)
+                    }
+                    3 -> {
+                        readByte(fileStream, 8)
+                    }
+                }
+            }
+
+            // padding
+            if (layerMaskSize == 20) {
+                cursor.readByte(fileStream, 2)
+                return
+            }
+
+
+        }
+    }
+
+    fun parseLayerBlending() {
+        cursor.apply {
+
+        }
     }
 
 }
