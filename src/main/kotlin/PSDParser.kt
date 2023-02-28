@@ -10,9 +10,8 @@ class PSDParser(private val fileStream: InputStream) {
         cursor = PSDCursor()
     }
 
-    // TODO: IMPLEMENT
     fun ByteArray.fromPascalString(): String {
-        return ""
+        return this.map { it.toInt().toChar()  }.joinToString(separator = "")
     }
 
     fun ByteArray.toInt(): Int {
@@ -154,12 +153,211 @@ class PSDParser(private val fileStream: InputStream) {
             parseLayerBlending()
 
             // layer name (Pascal String)
+            val layerName = parsePascalName()
+            print(layerName)
 
+            // additionalLayerInfo
+            
+            while (parseAdditionalLayer() != null) {
 
+            }
         }
     }
 
-    private fun parsePascalName() {
+    fun parseAdditionalLayer() {
+        cursor.apply {
+            val signature = String(readByte(fileStream, 4))
+            if (signature != "8BIM" && signature != "8B64") throw Error("")
+            val additionalLayerKey = String(readByte(fileStream, 4))
+            val keyLength = readByte(fileStream, 4).toInt()
+
+            if (keyLength > 0) {
+                readByte(fileStream, keyLength)
+                return
+            }
+            return
+
+            when (additionalLayerKey) {
+                "luni" -> {
+                    parseUnicodeString()
+                }
+                "lrFX" -> {
+
+                }
+                "tySh" -> {
+
+                }
+                "lyid" -> {
+
+                }
+                "lfx2" -> {
+
+                }
+                "Patt", "Pat2", "Pat3" -> {
+
+                }
+                "Anno" -> {
+
+                }
+                "clbl" -> {
+
+                }
+                "infx" -> {
+
+                }
+                "knko" -> {
+
+                }
+                "lspf" -> {
+
+                }
+                "lclr" -> {
+
+                }
+                "fxrp" -> {
+
+                }
+                "grdm" -> {
+
+                }
+                "lsct" -> {
+
+                }
+                "brst" -> {
+
+                }
+                "SoCo" -> {
+
+                }
+                "PtFl" -> {
+
+                }
+                "GdFl" -> {
+
+                }
+                "vmsk", "vsms" -> {
+
+                }
+                "TySh" -> {
+
+                }
+                "ffxi" -> {
+
+                }
+                "lnsr" -> {
+
+                }
+                "shpa" -> {
+
+                }
+                "shmd" -> {
+
+                }
+                "lyvr" -> {
+
+                }
+                "tsly" -> {
+
+                }
+                "lmgm" -> {
+
+                }
+                "vmgm" -> {
+
+                }
+                "brit" -> {
+
+                }
+                "mixr" -> {
+
+                }
+                "clrL" -> {
+
+                }
+                "plLd" -> {
+
+                }
+                "lnkD", "lnk2", "lnk3" -> {
+
+                }
+                "phfl" -> {
+
+                }
+                "blwh" -> {
+
+                }
+                "CgEd" -> {
+
+                }
+                "Txt2" -> {
+
+                }
+                "vibA" -> {
+
+                }
+                "pths" -> {
+
+                }
+                "anFX" -> {
+
+                }
+                "FMsk" -> {
+
+                }
+                "SoLd" -> {
+
+                }
+                "vstk" -> {
+
+                }
+                "vscg" -> {
+
+                }
+                "sn2P" -> {
+
+                }
+                "vogk" -> {
+
+                }
+                "PxSc" -> {
+
+                }
+                "cinf" -> {
+
+                }
+                "PxSD" -> {
+
+                }
+                "artb", "artd", "abdd" -> {
+
+                }
+                "SoLE" -> {
+
+                }
+                "Mtrn", "Mt16", "Mt32" -> {
+
+                }
+                "LMsk" -> {
+
+                }
+                "expA" -> {
+
+                }
+                "FXid", "FEid" -> {
+
+                }
+            }
+        }
+    }
+
+    private fun parseUnicodeString(): String? {
+        cursor.apply {
+
+        }
+        return ""
+    }
+
+    private fun parsePascalName(): String? {
         cursor.apply {
             val layerNameSize = readByte(fileStream, 1).toInt()
             val pascalStrings = if (layerNameSize > 0) {
@@ -168,6 +366,7 @@ class PSDParser(private val fileStream: InputStream) {
                 readByte(fileStream, 1)
                 null
             }
+            return pascalStrings
         }
     }
 
@@ -225,7 +424,15 @@ class PSDParser(private val fileStream: InputStream) {
 
     fun parseLayerBlending() {
         cursor.apply {
+            val blendingLength = readByte(fileStream, 4).toInt()
 
+            val greyBlendSource = readByte(fileStream, 4)
+            val greyBlendDestination = readByte(fileStream, 4)
+
+            ( 1..(blendingLength - 8)/8).forEach {
+                val channelSourceRange = readByte(fileStream, 4)
+                val channelDestinationRange = readByte(fileStream, 4)
+            }
         }
     }
 
