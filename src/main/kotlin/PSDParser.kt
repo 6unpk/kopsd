@@ -153,29 +153,32 @@ class PSDParser(private val fileStream: InputStream) {
             parseLayerBlending()
 
             // layer name (Pascal String)
-            val layerName = parsePascalName()
+            val layerName = parsePascalName(paddingBy = 4)
             print(layerName)
 
             // additionalLayerInfo
-            
-            while (parseAdditionalLayer() != null) {
 
+            while (parseAdditionalLayer()) {
+                println('?')
             }
         }
     }
 
-    fun parseAdditionalLayer() {
+    fun parseAdditionalLayer(): Boolean {
         cursor.apply {
+            markCursor(fileStream)
             val signature = String(readByte(fileStream, 4))
-            if (signature != "8BIM" && signature != "8B64") throw Error("")
+            if (signature != "8BIM" && signature != "8B64") {
+                resetCursor(fileStream)
+                return false
+            }
             val additionalLayerKey = String(readByte(fileStream, 4))
             val keyLength = readByte(fileStream, 4).toInt()
 
             if (keyLength > 0) {
                 readByte(fileStream, keyLength)
-                return
+                return true
             }
-            return
 
             when (additionalLayerKey) {
                 "luni" -> {
@@ -348,6 +351,7 @@ class PSDParser(private val fileStream: InputStream) {
                 }
             }
         }
+        return true
     }
 
     private fun parseUnicodeString(): String? {
@@ -357,7 +361,7 @@ class PSDParser(private val fileStream: InputStream) {
         return ""
     }
 
-    private fun parsePascalName(): String? {
+    private fun parsePascalName(paddingBy: Int? = null): String? {
         cursor.apply {
             val layerNameSize = readByte(fileStream, 1).toInt()
             val pascalStrings = if (layerNameSize > 0) {
@@ -365,6 +369,11 @@ class PSDParser(private val fileStream: InputStream) {
             } else {
                 readByte(fileStream, 1)
                 null
+            }
+            if (paddingBy != null) {
+                val padding = (1 + layerNameSize) % paddingBy
+                if (padding > 0)
+                    readByte(fileStream, paddingBy - padding)
             }
             return pascalStrings
         }
