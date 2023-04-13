@@ -36,7 +36,7 @@ class PSDParser(private val fileStream: InputStream) {
             readByte(fileStream, 6)
 
             // channel
-            readByte(fileStream, 2)
+            val channel = readByte(fileStream, 2).toInt()
 
             // height
             val height = readByte(fileStream, 4).toInt()
@@ -113,20 +113,30 @@ class PSDParser(private val fileStream: InputStream) {
 
         // Channel Image data
         for (i in 1..layerCount) {
-            val channelImageCompression = cursor.readByte(fileStream, 2).toInt()
-            parseChannelImageData(channelImageCompression, layerBlockList[i])
+            for (j in 1 .. layerBlockList[i].channelCount) {
+                val channelImageCompression = cursor.readByte(fileStream, 2).toInt()
+                parseChannelImageData(channelImageCompression, layerBlockList[i])
+            }
         }
     }
 
     private fun parseChannelImageData(compressionCode: Int, layerBlock: PSDLayerBlock) {
         when (compressionCode) {
             0 -> {
-                val size = (layerBlock.bottom - layerBlock.top) * (layerBlock.left - layerBlock.right)
+                var size = (layerBlock.bottom - layerBlock.top) * (layerBlock.right - layerBlock.left)
+                if (size % 2 == 1)
+                    size += 1
                 cursor.readByte(fileStream, size)
             }
             1 -> {
-                val size = (layerBlock.bottom - layerBlock.top) * 2 * layerBlock.channelCount
-                cursor.readByte(fileStream, size) // read As size * channelCount(usually 4, because of rgba)
+                var start = 0
+                do {
+                    cursor.markCursor(fileStream)
+                    val read = cursor.readByte(fileStream, 2).toInt() // read As size * channelCount(usually 4, because of rgba)
+                    start += 2
+                } while (read != 1 && read != 0 && read != 2 && read != 3)
+                cursor.resetCursor(fileStream)
+                print(start)
             }
             2 -> {
             }
