@@ -11,7 +11,7 @@ class PSDParser(private val fileStream: InputStream) {
     }
 
     fun ByteArray.fromPascalString(): String {
-        return this.map { it.toInt().toChar()  }.joinToString(separator = "")
+        return this.map { it.toInt().toChar() }.joinToString(separator = "")
     }
 
     fun ByteArray.toInt(): Int {
@@ -23,12 +23,14 @@ class PSDParser(private val fileStream: InputStream) {
     suspend fun parseHeader(): PSDFileHeader {
         cursor.apply {
             val signature = readByte(fileStream, 4)
-            if (String(signature) != "8BPS")
+            if (String(signature) != "8BPS") {
                 throw Error("Invalid PSD File")
+            }
 
             val version = readByte(fileStream, 2)
-            if (version[1].toInt() != 1)
+            if (version[1].toInt() != 1) {
                 throw Error("Invalid PSD Version")
+            }
 
             // reserved
             readByte(fileStream, 6)
@@ -67,10 +69,10 @@ class PSDParser(private val fileStream: InputStream) {
         }
     }
 
-    private suspend fun parseImageResourceBlock(): PSDImageResource?  {
+    private suspend fun parseImageResourceBlock(): PSDImageResource? {
         cursor.markCursor(fileStream)
         val signature = cursor.readByte(fileStream, 4)
-        if (String(signature) != "8BIM")  {
+        if (String(signature) != "8BIM") {
             cursor.resetCursor(fileStream)
             return null
         }
@@ -82,7 +84,7 @@ class PSDParser(private val fileStream: InputStream) {
         // pascal string format -> https://stackoverflow.com/questions/28519732/what-is-a-pascal-style-string
         val pascalStrings = if (resourceNameSize > 0) {
             cursor.readByte(fileStream, resourceNameSize).fromPascalString()
-        }  else {
+        } else {
             cursor.readByte(fileStream, 1)
             null
         }
@@ -105,14 +107,35 @@ class PSDParser(private val fileStream: InputStream) {
         val layerCount = cursor.readByte(fileStream, 2).toInt()
 
         // Layer Record Parsing
-        for (i in 1..layerCount) {
+        val layerBlockList = (1..layerCount).map {
             parseLayerBlock()
         }
 
-        // Global layer mask info
+        // Channel Image data
+        for (i in 1..layerCount) {
+            val channelImageCompression = cursor.readByte(fileStream, 2).toInt()
+            parseChannelImageData(channelImageCompression, layerBlockList[i])
+        }
     }
 
-    private suspend fun parseLayerBlock() {
+    private fun parseChannelImageData(compressionCode: Int, layerBlock: PSDLayerBlock) {
+        when (compressionCode) {
+            0 -> {
+                val size = (layerBlock.bottom - layerBlock.top) * (layerBlock.left - layerBlock.right)
+                cursor.readByte(fileStream, size)
+            }
+            1 -> {
+                val size = (layerBlock.bottom - layerBlock.top) * 2 * layerBlock.channelCount
+                cursor.readByte(fileStream, size) // read As size * channelCount(usually 4, because of rgba)
+            }
+            2 -> {
+            }
+            3 -> {
+            }
+        }
+    }
+
+    private suspend fun parseLayerBlock(): PSDLayerBlock {
         cursor.apply {
             val top = readByte(fileStream, 4).toInt()
             val left = readByte(fileStream, 4).toInt()
@@ -120,7 +143,7 @@ class PSDParser(private val fileStream: InputStream) {
             val right = readByte(fileStream, 4).toInt()
 
             val channelsCount = readByte(fileStream, 2).toInt()
-            for (channel in 1 .. channelsCount) {
+            for (channel in 1..channelsCount) {
                 readByte(fileStream, 2)
                 readByte(fileStream, 4)
             }
@@ -140,7 +163,7 @@ class PSDParser(private val fileStream: InputStream) {
             val clipping = readByte(fileStream, 1).toInt()
 
             // flag
-            val layerFlag = readByte(fileStream, 1)
+            val layerFlag = readByte(fileStream, 1).toInt()
 
             // filler
             readByte(fileStream, 1)
@@ -161,6 +184,8 @@ class PSDParser(private val fileStream: InputStream) {
             while (parseAdditionalLayer()) {
                 println('?')
             }
+
+            return PSDLayerBlock(top, left, bottom, right, channelsCount, opacity, false, layerFlag)
         }
     }
 
@@ -185,169 +210,114 @@ class PSDParser(private val fileStream: InputStream) {
                     parseUnicodeString()
                 }
                 "lrFX" -> {
-
                 }
                 "tySh" -> {
-
                 }
                 "lyid" -> {
-
                 }
                 "lfx2" -> {
-
                 }
                 "Patt", "Pat2", "Pat3" -> {
-
                 }
                 "Anno" -> {
-
                 }
                 "clbl" -> {
-
                 }
                 "infx" -> {
-
                 }
                 "knko" -> {
-
                 }
                 "lspf" -> {
-
                 }
                 "lclr" -> {
-
                 }
                 "fxrp" -> {
-
                 }
                 "grdm" -> {
-
                 }
                 "lsct" -> {
-
                 }
                 "brst" -> {
-
                 }
                 "SoCo" -> {
-
                 }
                 "PtFl" -> {
-
                 }
                 "GdFl" -> {
-
                 }
                 "vmsk", "vsms" -> {
-
                 }
                 "TySh" -> {
-
                 }
                 "ffxi" -> {
-
                 }
                 "lnsr" -> {
-
                 }
                 "shpa" -> {
-
                 }
                 "shmd" -> {
-
                 }
                 "lyvr" -> {
-
                 }
                 "tsly" -> {
-
                 }
                 "lmgm" -> {
-
                 }
                 "vmgm" -> {
-
                 }
                 "brit" -> {
-
                 }
                 "mixr" -> {
-
                 }
                 "clrL" -> {
-
                 }
                 "plLd" -> {
-
                 }
                 "lnkD", "lnk2", "lnk3" -> {
-
                 }
                 "phfl" -> {
-
                 }
                 "blwh" -> {
-
                 }
                 "CgEd" -> {
-
                 }
                 "Txt2" -> {
-
                 }
                 "vibA" -> {
-
                 }
                 "pths" -> {
-
                 }
                 "anFX" -> {
-
                 }
                 "FMsk" -> {
-
                 }
                 "SoLd" -> {
-
                 }
                 "vstk" -> {
-
                 }
                 "vscg" -> {
-
                 }
                 "sn2P" -> {
-
                 }
                 "vogk" -> {
-
                 }
                 "PxSc" -> {
-
                 }
                 "cinf" -> {
-
                 }
                 "PxSD" -> {
-
                 }
                 "artb", "artd", "abdd" -> {
-
                 }
                 "SoLE" -> {
-
                 }
                 "Mtrn", "Mt16", "Mt32" -> {
-
                 }
                 "LMsk" -> {
-
                 }
                 "expA" -> {
-
                 }
                 "FXid", "FEid" -> {
-
                 }
             }
         }
@@ -356,7 +326,6 @@ class PSDParser(private val fileStream: InputStream) {
 
     private fun parseUnicodeString(): String? {
         cursor.apply {
-
         }
         return ""
     }
@@ -372,8 +341,9 @@ class PSDParser(private val fileStream: InputStream) {
             }
             if (paddingBy != null) {
                 val padding = (1 + layerNameSize) % paddingBy
-                if (padding > 0)
+                if (padding > 0) {
                     readByte(fileStream, paddingBy - padding)
+                }
             }
             return pascalStrings
         }
@@ -385,25 +355,25 @@ class PSDParser(private val fileStream: InputStream) {
             if (layerMaskSize == 0) return
 
             val top = readByte(fileStream, 4)
-            val left = readByte(fileStream,4)
+            val left = readByte(fileStream, 4)
             val right = readByte(fileStream, 4)
             val bottom = readByte(fileStream, 4)
 
             val defaultColor = readByte(fileStream, 1)
 
-            //bit 0 = position relative to layer
-            //bit 1 = layer mask disabled
-            //bit 2 = invert layer mask when blending (Obsolete)
-            //bit 3 = indicates that the user mask actually came from rendering other data
-            //bit 4 = indicates that the user and/or vector masks have parameters applied to them
+            // bit 0 = position relative to layer
+            // bit 1 = layer mask disabled
+            // bit 2 = invert layer mask when blending (Obsolete)
+            // bit 3 = indicates that the user mask actually came from rendering other data
+            // bit 4 = indicates that the user and/or vector masks have parameters applied to them
             val flags = readByte(fileStream, 1).toInt()
 
             // mask parameters
             if (flags == 4) {
-                //bit 0 = user mask density, 1 byte
-                //bit 1 = user mask feather, 8 byte, double
-                //bit 2 = vector mask density, 1 byte
-                //bit 3 = vector mask feather, 8 bytes, double
+                // bit 0 = user mask density, 1 byte
+                // bit 1 = user mask feather, 8 byte, double
+                // bit 2 = vector mask density, 1 byte
+                // bit 3 = vector mask feather, 8 bytes, double
                 val maskParameter = readByte(fileStream, 1).toInt()
                 when (maskParameter) {
                     0 -> {
@@ -426,8 +396,6 @@ class PSDParser(private val fileStream: InputStream) {
                 cursor.readByte(fileStream, 2)
                 return
             }
-
-
         }
     }
 
@@ -438,11 +406,10 @@ class PSDParser(private val fileStream: InputStream) {
             val greyBlendSource = readByte(fileStream, 4)
             val greyBlendDestination = readByte(fileStream, 4)
 
-            ( 1..(blendingLength - 8)/8).forEach {
+            (1..(blendingLength - 8) / 8).forEach {
                 val channelSourceRange = readByte(fileStream, 4)
                 val channelDestinationRange = readByte(fileStream, 4)
             }
         }
     }
-
 }
